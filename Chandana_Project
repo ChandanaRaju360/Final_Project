@@ -1,0 +1,389 @@
+from tkinter import Tk, Label, Entry, Button, messagebox
+from datetime import datetime
+import csv
+import random
+
+class Patient:
+    def __init__(self, patient_id, visit_id, visit_time, visit_department, race, gender, ethnicity, age, zip_code, insurance, chief_complaint, note_id, note_type):
+        self.patient_id = patient_id
+        self.visits = {visit_id: Visit(visit_id, visit_time, visit_department, chief_complaint, note_id, note_type)}
+        self.info = {
+            'Race': race,
+            'Gender': gender,
+            'Ethnicity': ethnicity,
+            'Age': age,
+            'Zip_code': zip_code,
+            'Insurance': insurance
+        }
+    
+    def add_visit(self, visit_id, visit_time, visit_department, chief_complaint, note_id, note_type):
+        self.visits[visit_id] = Visit(visit_id, visit_time, visit_department, chief_complaint, note_id, note_type)
+
+class Visit:
+    def __init__(self, visit_id, visit_time, visit_department, chief_complaint, note_id, note_type):
+        self.visit_id = visit_id
+        self.visit_time = visit_time
+        self.visit_department = visit_department
+        self.chief_complaint = chief_complaint
+        self.note_id = note_id
+        self.note_type = note_type
+
+class User:
+    def __init__(self, username, password, role):
+        self.username = username
+        self.password = password
+        self.role = role
+
+class Hospital:
+    def __init__(self):
+        self.patients = {}
+
+    def add_patient(self, patient_id, visit_id, visit_time, visit_department, race, gender, ethnicity, age, zip_code, insurance, chief_complaint, note_id, note_type):
+        if patient_id in self.patients:
+            visit_id = self.generate_unique_visit_id(patient_id)
+        patient = Patient(patient_id, visit_id, visit_time, visit_department, race, gender, ethnicity, age, zip_code, insurance, chief_complaint, note_id, note_type)
+        self.patients[patient_id] = patient
+        return patient
+
+    def remove_patient(self, patient_id):
+        if patient_id in self.patients:
+            del self.patients[patient_id]
+            messagebox.showinfo("Patient Removed", "Patient removed successfully.")
+        else:
+            messagebox.showerror("Patient Not Found", "Patient ID not found.")
+
+    def retrieve_patient(self, patient_id):
+        if patient_id in self.patients:
+            patient = self.patients[patient_id]
+            patient_info = f"Patient ID: {patient.patient_id}\nPatient Info: {patient.info}\nVisits:\n"
+            for visit_id, visit in patient.visits.items():
+                patient_info += f"Visit ID: {visit_id}\nVisit Time: {visit.visit_time}\nVisit Department: {visit.visit_department}\nChief Complaint: {visit.chief_complaint}\nNote ID: {visit.note_id}\nNote Type: {visit.note_type}\n\n"
+            messagebox.showinfo("Patient Information", patient_info)
+        else:
+            messagebox.showerror("Patient Not Found", "Patient ID not found.")
+
+    def count_visits(self, date):
+        count = 0
+        input_date = datetime.strptime(date, '%Y-%m-%d').date()
+        for patient in self.patients.values():
+            for visit in patient.visits.values():
+                if visit.visit_time == input_date:
+                    count += 1
+        messagebox.showinfo("Count Visits", f"Total visits on {date}: {count}")
+
+    def generate_unique_visit_id(self, patient_id):
+        visit_id = f"{patient_id}_{random.randint(100000, 999999)}"
+        while visit_id in self.patients[patient_id].visits:
+            visit_id = f"{patient_id}_{random.randint(100000, 999999)}"
+        return visit_id
+
+    def generate_key_statistics(self):
+        # Generate key statistics based on visit departments or insurance types
+        visit_departments = {}
+        insurance_types = {}
+        for patient in self.patients.values():
+            for visit in patient.visits.values():
+                if visit.visit_department in visit_departments:
+                    visit_departments[visit.visit_department] += 1
+                else:
+                    visit_departments[visit.visit_department] = 1
+
+                if visit.note_type in insurance_types:
+                    insurance_types[visit.note_type] += 1
+                else:
+                    insurance_types[visit.note_type] = 1
+
+        key_statistics = "Key Statistics:\n"
+        key_statistics += "Visit Departments:\n"
+        for department, count in visit_departments.items():
+            key_statistics += f"{department}: {count}\n"
+
+        key_statistics += "\nInsurance Types:\n"
+        for insurance, count in insurance_types.items():
+            key_statistics += f"{insurance}: {count}\n"
+
+        messagebox.showinfo("Key Statistics", key_statistics)
+
+def load_credentials(file_path):
+    users = []
+    with open(file_path, newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            users.append(User(row['username'], row['password'], row['role']))
+    return users
+
+def load_data(file_path):
+    hospital = Hospital()
+    with open(file_path, newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            visit_time = datetime.strptime(row['Visit_time'], '%Y-%m-%d').date()
+            hospital.add_patient(row['Patient_ID'], row['Visit_ID'], visit_time, row['Visit_department'], row['Race'], row['Gender'], row['Ethnicity'], row['Age'], row['Zip_code'], row['Insurance'], row['Chief_complaint'], row['Note_ID'], row['Note_type'])
+    return hospital
+
+def main():
+    credential_file_path = "Project_credentials.csv"
+    patient_file_path = "Project_patient_information.csv"
+
+    users = load_credentials(credential_file_path)
+    hospital = load_data(patient_file_path)
+
+    root = Tk()
+    root.title("Hospital Clinical Data Warehouse")
+    root.geometry("400x400")
+
+    username_label = Label(root, text="Username:")
+    username_label.pack()
+
+    username_entry = Entry(root)
+    username_entry.pack()
+
+    password_label = Label(root, text="Password:")
+    password_label.pack()
+
+    password_entry = Entry(root, show="*")
+    password_entry.pack()
+
+    def validate_login():
+        username = username_entry.get()
+        password = password_entry.get()
+        user = None
+        for u in users:
+            if u.username == username and u.password == password:
+                user = u
+                break
+
+        if user is None:
+            # Record failed login attempt
+            record_usage(username, "Failed Login Attempt")
+            messagebox.showerror("Login Failed", "Invalid username or password")
+        else:
+            # Record successful login
+            record_usage(username, "Login")
+            root.withdraw()
+            show_menu(user)
+
+    login_button = Button(root, text="Login", command=validate_login)
+    login_button.pack()
+
+    def show_menu(user):
+        menu_root = Tk()
+        menu_root.title("Menu")
+
+        if user.role == "management":
+            generate_statistics_button = Button(menu_root, text="Generate Key Statistics", command=hospital.generate_key_statistics)
+            generate_statistics_button.pack()
+
+        if user.role == "admin":
+            count_visits_button = Button(menu_root, text="Count Visits", command=count_visits_ui)
+            count_visits_button.pack()
+
+        if user.role in ["admin", "nurse", "clinician"]:
+            add_patient_button = Button(menu_root, text="Add Patient", command=add_patient_ui)
+            add_patient_button.pack()
+
+            remove_patient_button = Button(menu_root, text="Remove Patient", command=remove_patient_ui)
+            remove_patient_button.pack()
+
+            retrieve_patient_button = Button(menu_root, text="Retrieve Patient", command=retrieve_patient_ui)
+            retrieve_patient_button.pack()
+
+        exit_button = Button(menu_root, text="Exit", command=menu_root.destroy)
+        exit_button.pack()
+
+        menu_root.mainloop()
+
+    def add_patient_ui():
+        add_patient_window = Tk()
+        add_patient_window.title("Add Patient")
+
+        patient_id_label = Label(add_patient_window, text="Patient ID:")
+        patient_id_label.pack()
+
+        patient_id_entry = Entry(add_patient_window)
+        patient_id_entry.pack()
+
+        def check_patient_id():
+            patient_id = patient_id_entry.get()
+            if patient_id in hospital.patients:
+                add_visit_ui(patient_id)
+            else:
+                add_basic_info_ui(patient_id)
+
+        def add_basic_info_ui(patient_id):
+            add_patient_window.destroy()
+            add_patient_window = Tk()
+            add_patient_window.title("Add Patient - Basic Info")
+
+            patient_id_label = Label(add_patient_window, text=f"Patient ID: {patient_id}")
+            patient_id_label.pack()
+
+            race_label = Label(add_patient_window, text="Race:")
+            race_label.pack()
+            race_entry = Entry(add_patient_window)
+            race_entry.pack()
+
+            gender_label = Label(add_patient_window, text="Gender:")
+            gender_label.pack()
+            gender_entry = Entry(add_patient_window)
+            gender_entry.pack()
+
+            ethnicity_label = Label(add_patient_window, text="Ethnicity:")
+            ethnicity_label.pack()
+            ethnicity_entry = Entry(add_patient_window)
+            ethnicity_entry.pack()
+
+            age_label = Label(add_patient_window, text="Age:")
+            age_label.pack()
+            age_entry = Entry(add_patient_window)
+            age_entry.pack()
+
+            zip_code_label = Label(add_patient_window, text="Zip Code:")
+            zip_code_label.pack()
+            zip_code_entry = Entry(add_patient_window)
+            zip_code_entry.pack()
+
+            insurance_label = Label(add_patient_window, text="Insurance:")
+            insurance_label.pack()
+            insurance_entry = Entry(add_patient_window)
+            insurance_entry.pack()
+
+            def add_patient():
+                visit_time = datetime.now().date()
+                visit_department = ""
+                chief_complaint = ""
+                visit_id = hospital.generate_unique_visit_id(patient_id)
+                hospital.add_patient(patient_id, visit_id, visit_time, visit_department, race_entry.get(), gender_entry.get(), ethnicity_entry.get(), age_entry.get(), zip_code_entry.get(), insurance_entry.get(), chief_complaint, "", "")
+                # Record action
+                record_usage(username_entry.get(), "Add Patient")
+                messagebox.showinfo("Patient Added", "Patient added successfully.")
+                add_patient_window.destroy()
+
+            add_button = Button(add_patient_window, text="Add", command=add_patient)
+            add_button.pack()
+
+            add_patient_window.mainloop()
+
+        def add_visit_ui(patient_id):
+            add_visit_window = Tk()
+            add_visit_window.title("Add Visit")
+
+            patient_id_label = Label(add_visit_window, text=f"Patient ID: {patient_id}")
+            patient_id_label.pack()
+
+            visit_time_label = Label(add_visit_window, text="Visit Time (YYYY-MM-DD):")
+            visit_time_label.pack()
+            visit_time_entry = Entry(add_visit_window)
+            visit_time_entry.pack()
+
+            visit_department_label = Label(add_visit_window, text="Visit Department:")
+            visit_department_label.pack()
+            visit_department_entry = Entry(add_visit_window)
+            visit_department_entry.pack()
+
+            chief_complaint_label = Label(add_visit_window, text="Chief Complaint:")
+            chief_complaint_label.pack()
+            chief_complaint_entry = Entry(add_visit_window)
+            chief_complaint_entry.pack()
+
+            def add_visit():
+                visit_time = visit_time_entry.get()
+                visit_department = visit_department_entry.get()
+                chief_complaint = chief_complaint_entry.get()
+                visit_id = hospital.generate_unique_visit_id(patient_id)
+                hospital.patients[patient_id].add_visit(visit_id, visit_time, visit_department, chief_complaint, "", "")
+                # Record action
+                record_usage(username_entry.get(), "Add Visit")
+                messagebox.showinfo("Visit Added", "Visit added successfully.")
+                add_visit_window.destroy()
+
+            add_button = Button(add_visit_window, text="Add Visit", command=add_visit)
+            add_button.pack()
+
+            add_visit_window.mainloop()
+
+        check_button = Button(add_patient_window, text="Check Patient ID", command=check_patient_id)
+        check_button.pack()
+
+        add_patient_window.mainloop()
+
+    def remove_patient_ui():
+        # UI to remove patient
+        remove_patient_window = Tk()
+        remove_patient_window.title("Remove Patient")
+        remove_patient_window.geometry("300x100")
+
+        patient_id_label = Label(remove_patient_window, text="Patient ID:")
+        patient_id_label.pack()
+
+        patient_id_entry = Entry(remove_patient_window)
+        patient_id_entry.pack()
+
+        def remove_patient():
+            patient_id = patient_id_entry.get()
+            hospital.remove_patient(patient_id)
+            # Record action
+            record_usage(username_entry.get(), "Remove Patient")
+            remove_patient_window.destroy()
+
+        remove_button = Button(remove_patient_window, text="Remove", command=remove_patient)
+        remove_button.pack()
+
+        remove_patient_window.mainloop()
+
+    def retrieve_patient_ui():
+        # UI to retrieve patient
+        retrieve_patient_window = Tk()
+        retrieve_patient_window.title("Retrieve Patient")
+        retrieve_patient_window.geometry("300x100")
+
+        patient_id_label = Label(retrieve_patient_window, text="Patient ID:")
+        patient_id_label.pack()
+
+        patient_id_entry = Entry(retrieve_patient_window)
+        patient_id_entry.pack()
+
+        def retrieve_patient():
+            patient_id = patient_id_entry.get()
+            hospital.retrieve_patient(patient_id)
+            retrieve_patient_window.destroy()
+
+        retrieve_button = Button(retrieve_patient_window, text="Retrieve", command=retrieve_patient)
+        retrieve_button.pack()
+
+        retrieve_patient_window.mainloop()
+
+    def count_visits_ui():
+        # UI to count visits
+        count_visits_window = Tk()
+        count_visits_window.title("Count Visits")
+        count_visits_window.geometry("300x100")
+
+        date_label = Label(count_visits_window, text="Date (YYYY-MM-DD):")
+        date_label.pack()
+
+        date_entry = Entry(count_visits_window)
+        date_entry.pack()
+
+        def count_visits():
+            date = date_entry.get()
+            hospital.count_visits(date)
+            # Record action
+            record_usage(username_entry.get(), "Count Visits")
+            count_visits_window.destroy()
+
+        count_button = Button(count_visits_window, text="Count Visits", command=count_visits)
+        count_button.pack()
+
+        count_visits_window.mainloop()
+
+    def record_usage(username, action):
+        log_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open('usage_statistics.csv', mode='a', newline='') as usage_file:
+            usage_writer = csv.writer(usage_file)
+            usage_writer.writerow([username, action, log_time])
+
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
